@@ -2,6 +2,7 @@ const express = require('express');
 const productController = require('../controller/productController');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { validateProduct } = require('../validators/productValidator');
+const upload = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -11,8 +12,8 @@ router.get('/products/subcategory/:subcategoryId', productController.getProducts
 router.get('/products/:id', productController.getProduct);
 
 // Admin routes
-router.post('/products', authMiddleware, adminMiddleware, validateProduct, productController.createProduct);
-router.put('/products/:id', authMiddleware, adminMiddleware, validateProduct, productController.updateProduct);
+router.post('/products', authMiddleware, adminMiddleware, upload, validateProduct, productController.createProduct);
+router.put('/products/:id', authMiddleware, adminMiddleware, upload, validateProduct, productController.updateProduct);
 router.delete('/products/:id', authMiddleware, adminMiddleware, productController.deleteProduct);
 
 module.exports = router;

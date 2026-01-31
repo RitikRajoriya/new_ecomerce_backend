@@ -1,5 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
+const cors = require('cors');
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
@@ -14,9 +15,13 @@ dotenv.config();
 // Initialize Express app
 const app = express();
 
+// Enable CORS for all origins
+app.use(cors({ origin: true }));
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static('uploads'));
 
 // Connect to MongoDB
 connectDB();

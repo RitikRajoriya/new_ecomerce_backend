@@ -24,10 +24,7 @@ const validateCategory = [
     .trim()
     .isLength({ max: 500 })
     .withMessage('Description cannot be more than 500 characters'),
-  body('image')
-    .optional()
-    .isURL()
-    .withMessage('Image must be a valid URL'),
+  // image will be handled via file upload
   handleValidationErrors,
 ];
 
@@ -45,10 +42,7 @@ const validateSubcategory = [
   body('category')
     .isMongoId()
     .withMessage('Category must be a valid ObjectId'),
-  body('image')
-    .optional()
-    .isURL()
-    .withMessage('Image must be a valid URL'),
+  // image will be handled via file upload
   handleValidationErrors,
 ];
 

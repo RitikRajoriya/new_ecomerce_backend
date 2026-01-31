@@ -4,7 +4,10 @@ const Subcategory = require('../models/Subcategory');
 // Create Category (Admin only)
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, image } = req.body;
+    const { name, description } = req.body;
+
+    // Build image URL
+    const image = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
 
     // Check if category already exists
     const existingCategory = await Category.findOne({ name });
@@ -42,7 +45,10 @@ exports.createCategory = async (req, res) => {
 // Create Subcategory (Admin only)
 exports.createSubcategory = async (req, res) => {
   try {
-    const { name, description, category, image } = req.body;
+    const { name, description, category } = req.body;
+
+    // Build image URL
+    const image = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
 
     // Check if category exists
     const existingCategory = await Category.findById(category);
@@ -135,7 +141,10 @@ exports.getCategory = async (req, res) => {
 // Update category (Admin only)
 exports.updateCategory = async (req, res) => {
   try {
-    const { name, description, image, isActive } = req.body;
+    const { name, description, isActive } = req.body;
+
+    // Build image URL if file uploaded
+    const image = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : undefined;
 
     const category = await Category.findById(req.params.id);
 
@@ -285,7 +294,10 @@ exports.getSubcategory = async (req, res) => {
 // Update subcategory (Admin only)
 exports.updateSubcategory = async (req, res) => {
   try {
-    const { name, description, category, image, isActive } = req.body;
+    const { name, description, category, isActive } = req.body;
+
+    // Build image URL if file uploaded
+    const image = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : undefined;
 
     const subcategory = await Subcategory.findById(req.params.id);
 

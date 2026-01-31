@@ -27,14 +27,7 @@ const validateProduct = [
   body('subcategory')
     .isMongoId()
     .withMessage('Subcategory must be a valid ObjectId'),
-  body('images')
-    .optional()
-    .isArray()
-    .withMessage('Images must be an array'),
-  body('images.*')
-    .optional()
-    .isURL()
-    .withMessage('Each image must be a valid URL'),
+  // images will be handled via file upload
   body('variations')
     .isArray({ min: 1 })
     .withMessage('At least one variation is required'),

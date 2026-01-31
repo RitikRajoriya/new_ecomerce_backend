@@ -4,7 +4,10 @@ const Subcategory = require('../models/Subcategory');
 // Create Product (Admin only)
 exports.createProduct = async (req, res) => {
   try {
-    const { name, description, subcategory, images, variations, brand } = req.body;
+    const { name, description, subcategory, variations, brand } = req.body;
+
+    // Build image URLs
+    const images = req.files ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`) : [];
 
     // Check if subcategory exists
     const existingSubcategory = await Subcategory.findById(subcategory);
@@ -155,7 +158,10 @@ exports.getProduct = async (req, res) => {
 // Update product (Admin only)
 exports.updateProduct = async (req, res) => {
   try {
-    const { name, description, subcategory, images, variations, brand, isActive } = req.body;
+    const { name, description, subcategory, variations, brand, isActive } = req.body;
+
+    // Build image URLs if files uploaded
+    const images = req.files && req.files.length > 0 ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`) : undefined;
 
     const product = await Product.findById(req.params.id);
 
