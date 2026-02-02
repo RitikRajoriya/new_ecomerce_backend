@@ -4,14 +4,39 @@ const Subcategory = require('../models/Subcategory');
 // Create Product (Admin only)
 exports.createProduct = async (req, res) => {
   try {
-    const { name, description, subcategory, variations, brand } = req.body;
+    let { name, description, subcategory, variations, brand } = req.body;
 
-    // Build image URLs
-    const images = req.files ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`) : [];
+    console.log('Raw variations:', variations);
+    console.log('Type before parse:', typeof variations);
 
-    // Check if subcategory exists
+    // Parse variations (form-data fix)
+    if (typeof variations === 'string') {
+      try {
+        variations = JSON.parse(variations);
+      } catch (err) {
+        return res.status(400).json({
+          success: false,
+          message: 'Variations must be valid JSON',
+        });
+      }
+    }
+    
+
+    // Validate variations
+    if (!Array.isArray(variations) || variations.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one variation is required',
+      });
+    }
+
+   
+    const images = req.files
+      ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`)
+      : [];
+
+    // Check subcategory
     const existingSubcategory = await Subcategory.findById(subcategory);
-
     if (!existingSubcategory) {
       return res.status(400).json({
         success: false,
@@ -19,15 +44,7 @@ exports.createProduct = async (req, res) => {
       });
     }
 
-    // Validate variations
-    if (!variations || !Array.isArray(variations) || variations.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'At least one variation is required',
-      });
-    }
-
-    // Check for duplicate sizes in variations
+    // Duplicate size check
     const sizes = variations.map(v => v.size);
     if (new Set(sizes).size !== sizes.length) {
       return res.status(400).json({
@@ -36,14 +53,14 @@ exports.createProduct = async (req, res) => {
       });
     }
 
-    // Create new product
+    // Save product
     const product = new Product({
       name,
       description,
       subcategory,
-      images,
-      variations,
       brand,
+      variations,
+      images,
     });
 
     await product.save();
@@ -53,6 +70,7 @@ exports.createProduct = async (req, res) => {
       message: 'Product created successfully',
       product,
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -61,6 +79,7 @@ exports.createProduct = async (req, res) => {
     });
   }
 };
+
 
 // Get all products (Public)
 exports.getAllProducts = async (req, res) => {
@@ -158,7 +177,7 @@ exports.getProduct = async (req, res) => {
 // Update product (Admin only)
 exports.updateProduct = async (req, res) => {
   try {
-    const { name, description, subcategory, variations, brand, isActive } = req.body;
+    let { name, description, subcategory, variations, brand, isActive } = req.body;
 
     // Build image URLs if files uploaded
     const images = req.files && req.files.length > 0 ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`) : undefined;
@@ -184,14 +203,27 @@ exports.updateProduct = async (req, res) => {
     }
 
     // Validate variations if provided
+  
     if (variations) {
-      if (!Array.isArray(variations) || variations.length === 0) {
+      if (typeof variations === 'string') {
+        try {
+        variations = JSON.parse(variations);
+      } catch (err) {
         return res.status(400).json({
           success: false,
-          message: 'At least one variation is required',
+          message: 'Variations must be valid JSON',
         });
       }
+      }
+    
 
+    // Validate variations
+    if (!Array.isArray(variations) || variations.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one variation is required',
+      });
+    }
       const sizes = variations.map(v => v.size);
       if (new Set(sizes).size !== sizes.length) {
         return res.status(400).json({

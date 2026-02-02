@@ -12,8 +12,8 @@ router.get('/products/subcategory/:subcategoryId', productController.getProducts
 router.get('/products/:id', productController.getProduct);
 
 // Admin routes
-router.post('/products', authMiddleware, adminMiddleware, upload, validateProduct, productController.createProduct);
-router.put('/products/:id', authMiddleware, adminMiddleware, upload, validateProduct, productController.updateProduct);
+router.post('/products', authMiddleware, adminMiddleware, upload, productController.createProduct);
+router.put('/products/:id', authMiddleware, adminMiddleware, upload, productController.updateProduct);
 router.delete('/products/:id', authMiddleware, adminMiddleware, productController.deleteProduct);
 
 module.exports = router;
