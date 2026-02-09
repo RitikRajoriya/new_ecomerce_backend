@@ -1,0 +1,38 @@
+name: Deploy Node Backend (PM2)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🚀 Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+
+            echo "📁 Moving to project directory"
+            cd /home/ubuntu/new_ecomerce_backend
+
+            echo "📥 Pulling latest code"
+            git pull origin main
+
+            echo "📦 Installing dependencies"
+            npm install --production
+
+            echo "🔁 Restarting PM2"
+            pm2 reload server || pm2 start server.js --name server
+
+            echo "💾 Saving PM2 state"
+            pm2 save
+
+            echo "✅ Deployment successful"
