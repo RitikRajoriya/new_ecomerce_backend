@@ -1,39 +1,29 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
-// Set storage engine
+// Ensure uploads folder exists
+const uploadPath = path.join(__dirname, '../uploads');
+
+if (!fs.existsSync(uploadPath)) {
+  fs.mkdirSync(uploadPath, { recursive: true });
+}
+
+// Storage config
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
+    const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueName + path.extname(file.originalname));
   }
 });
 
-// Check file type
-function checkFileType(file, cb) {
-  // Allowed ext
-  const filetypes = /jpeg|jpg|png|gif/;
-  // Check ext
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  // Check mime
-  const mimetype = filetypes.test(file.mimetype);
-
-  if (mimetype && extname) {
-    return cb(null, true);
-  } else {
-    cb('Error: Images Only!');
-  }
-}
-
-// Init upload for single image
+// Multer upload instance (ALLOW EVERYTHING)
 const uploadSingle = multer({
   storage: storage,
-  limits: { fileSize: 1000000 }, // 1MB limit
-  fileFilter: function (req, file, cb) {
-    checkFileType(file, cb);
-  }
-}).single('image');
+  limits: { fileSize: 20 * 1024 * 1024 } // 20MB limit (increase if needed)
+}).single('image'); // field name
 
 module.exports = uploadSingle;

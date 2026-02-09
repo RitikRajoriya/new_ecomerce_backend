@@ -27,6 +27,10 @@ const productSchema = new mongoose.Schema(
         message: 'Image must be a valid URL'
       }
     }],
+    banner: {
+      type: String,
+      default: null,
+    },
     variations: [{
       size: {
         type: String,
@@ -53,6 +57,24 @@ const productSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    isSpecialDeal: {
+      type: Boolean,
+      default: false,
+    },
+    dealDiscount: {
+      type: Number,
+      min: [0, 'Discount cannot be negative'],
+      max: [100, 'Discount cannot be more than 100%'],
+      default: 0,
+    },
+    dealStartDate: {
+      type: Date,
+      default: null,
+    },
+    dealEndDate: {
+      type: Date,
+      default: null,
     },
   },
   { timestamps: true }

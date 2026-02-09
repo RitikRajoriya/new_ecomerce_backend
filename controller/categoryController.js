@@ -6,41 +6,55 @@ exports.createCategory = async (req, res) => {
   try {
     const { name, description } = req.body;
 
-    // Build image URL
-    const image = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : null;
+    // Validation
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Category name is required",
+      });
+    }
 
-    // Check if category already exists
-    const existingCategory = await Category.findOne({ name });
+    // Check if category already exists (case-insensitive)
+    const existingCategory = await Category.findOne({
+      name: { $regex: new RegExp("^" + name + "$", "i") },
+    });
 
     if (existingCategory) {
       return res.status(400).json({
         success: false,
-        message: 'Category already exists',
+        message: "Category already exists",
       });
     }
 
-    // Create new category
-    const category = new Category({
+    // Build image URL safely
+    let image = null;
+    if (req.file) {
+      image = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    }
+
+    // Create category
+    const category = await Category.create({
       name,
       description,
       image,
     });
 
-    await category.save();
-
     res.status(201).json({
       success: true,
-      message: 'Category created successfully',
+      message: "Category created successfully",
       category,
     });
+
   } catch (error) {
+    console.error("Create Category Error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: "Server error",
       error: error.message,
     });
   }
 };
+
 
 // Create Subcategory (Admin only)
 exports.createSubcategory = async (req, res) => {
