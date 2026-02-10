@@ -34,7 +34,7 @@ exports.login = async (req, res) => {
     }
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role); // Pass role to token if needed for future use
 
     // Remove password from response
     const userResponse = user.toJSON();
@@ -158,7 +158,7 @@ exports.adminRegister = async (req, res) => {
     await admin.save();
 
     // Generate token
-    const token = generateToken(admin._id);
+    const token = generateToken(admin._id, admin.role); // Pass role to token if needed for future use
 
     // Remove password from response
     const adminResponse = admin.toJSON();
@@ -211,7 +211,7 @@ exports.adminLogin = async (req, res) => {
     }
 
     // Generate token
-    const token = generateToken(admin._id);
+    const token = generateToken(admin._id, admin.role); // Pass role to token if needed for future use
 
     // Remove password from response
     const adminResponse = admin.toJSON();
