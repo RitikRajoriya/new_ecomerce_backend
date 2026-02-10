@@ -11,7 +11,7 @@ router.post('/login', validateLogin, authController.login);
 router.post('/signup', validateSignup, authController.signup);
 router.post('/admin/register', validateSignup, authController.adminRegister);
 router.post('/admin/login', validateLogin, authController.adminLogin);
-router.post('/admin/users',adminMiddleware, authController.getAllUsers);
+router.get('/admin/users',adminMiddleware, authController.getAllUsers);
 
 // Protected routes
 router.get('/me', authMiddleware, authController.getCurrentUser);
