@@ -402,6 +402,53 @@ exports.uploadBanner = async (req, res) => {
   }
 };
 
+// Delete banner for product (Admin only)
+exports.deleteBanner = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if product exists
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+
+    // Check if banner exists
+    if (!product.banner) {
+      return res.status(400).json({
+        success: false,
+        message: 'No banner found for this product',
+      });
+    }
+
+    // Update product to remove banner
+    const updatedProduct = await Product.findByIdAndUpdate(
+      id,
+      { banner: null },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Banner deleted successfully',
+      data: {
+        productId: updatedProduct._id,
+        productName: updatedProduct.name,
+        banner: updatedProduct.banner,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
 // Get all special deal products (Public)
 exports.getSpecialDealProducts = async (req, res) => {
   try {

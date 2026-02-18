@@ -20,6 +20,7 @@ router.post('/products', authMiddleware, adminMiddleware, upload, productControl
 router.put('/products/:id', authMiddleware, adminMiddleware, upload, productController.updateProduct);
 router.delete('/products/:id', authMiddleware, adminMiddleware, productController.deleteProduct);
 router.post('/products/:id/banner', authMiddleware, adminMiddleware, uploadSingle, productController.uploadBanner);
+router.delete('/products/:id/banner', authMiddleware, adminMiddleware, productController.deleteBanner);
 router.put('/products/:id/deal', authMiddleware, adminMiddleware, productController.updateSpecialDeal);
 
 module.exports = router;

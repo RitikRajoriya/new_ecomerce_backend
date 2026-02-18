@@ -9,6 +9,7 @@ const wishlistRoutes = require('./routes/wishlistRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +33,7 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/newsletters', newsletterRoutes);
+app.use('/api', analyticsRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
