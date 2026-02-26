@@ -70,9 +70,7 @@ const validateCreateOrder = [
     .trim()
     .notEmpty()
     .withMessage('Country is required'),
-  body('paymentMethod')
-    .isIn(['card', 'paypal', 'bank_transfer'])
-    .withMessage('Valid payment method is required'),
+ 
   handleValidationErrors,
 ];
 
