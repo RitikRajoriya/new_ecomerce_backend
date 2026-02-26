@@ -11,6 +11,9 @@ const orderRoutes = require('./routes/orderRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 
+// Logger middleware
+const logger = require('./middleware/logger');
+
 // Load environment variables
 dotenv.config();
 
@@ -21,6 +24,12 @@ const app = express();
 app.use(cors({ origin: true }));
 
 // Middleware
+// Log incoming requests to the console
+app.use((req, res, next) => {
+  console.log(`REQUEST: ${req.method} ${req.url} | Headers: ${JSON.stringify(req.headers)} | Body: ${JSON.stringify(req.body)}`);
+  next();
+});
+app.use(logger); // Log all requests and responses
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
