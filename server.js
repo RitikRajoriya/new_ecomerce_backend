@@ -10,6 +10,7 @@ const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const videoRoutes = require('./routes/videoRoutes');
 
 // Logger middleware
 const logger = require('./middleware/logger');
@@ -43,6 +44,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/newsletters', newsletterRoutes);
 app.use('/api', analyticsRoutes);
+app.use('/api', videoRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
