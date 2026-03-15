@@ -47,6 +47,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/newsletters', newsletterRoutes);
 app.use('/api', analyticsRoutes);
 app.use('/api', videoRoutes);
+app.use('/api/support', require('./routes/supportRoutes'));
 
 // Health check route
 app.get('/api/health', (req, res) => {

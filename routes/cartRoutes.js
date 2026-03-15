@@ -9,7 +9,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/', cartController.getCart);
-router.post('/', validateAddToCart, cartController.addToCart);
+router.post('/',  cartController.addToCart);
 router.put('/', validateUpdateCart, cartController.updateCartItem);
 router.delete('/:productId/:size', cartController.removeFromCart);
 router.delete('/', cartController.clearCart);
