@@ -10,7 +10,9 @@ const orderItemSchema = new mongoose.Schema(
     size: {
       type: String,
       required: true,
-      enum: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'],
+    },
+    unit: {
+      type: String,
     },
     quantity: {
       type: Number,
@@ -26,6 +28,10 @@ const orderItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: [0, 'Total cannot be negative'],
+    },
+    taxRate: {
+      type: Number,
+      default: 0,
     },
   },
   { _id: false }
@@ -49,7 +55,6 @@ const orderSchema = new mongoose.Schema(
     paymentMethod: {
       type: String,
       required: true,
-      
     },
     paymentStatus: {
       type: String,
@@ -58,23 +63,32 @@ const orderSchema = new mongoose.Schema(
     },
     orderStatus: {
       type: String,
-      enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
-      default: 'pending',
+      enum: ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'],
+      default: 'Placed',
     },
-    totalAmount: {
+    itemsPrice: {
       type: Number,
-      required: true,
-      min: [0, 'Total amount cannot be negative'],
+      default: 0,
+      min: [0, 'Items price cannot be negative'],
+    },
+    taxAmount: {
+      type: Number,
+      default: 0,
+      min: [0, 'Tax amount cannot be negative'],
     },
     shippingCost: {
       type: Number,
       default: 0,
       min: [0, 'Shipping cost cannot be negative'],
     },
-    taxAmount: {
+    totalAmount: {
       type: Number,
-      default: 0,
-      min: [0, 'Tax amount cannot be negative'],
+      required: true,
+      min: [0, 'Total amount cannot be negative'],
+    },
+    invoiceFile: {
+      type: String,
+      default: null,
     },
     trackingNumber: {
       type: String,
@@ -84,6 +98,23 @@ const orderSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    tracking: [
+      {
+        status: {
+          type: String,
+          enum: ['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'],
+          required: true,
+        },
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+        message: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -93,6 +124,29 @@ orderSchema.pre('save', function(next) {
   this.totalAmount = this.items.reduce((total, item) => {
     return total + item.total;
   }, 0) + this.shippingCost + this.taxAmount;
+  next();
+});
+
+// Auto-add tracking entry when orderStatus changes
+orderSchema.pre('save', function(next) {
+  // Check if orderStatus was modified
+  if (this.isModified('orderStatus')) {
+    const statusMessages = {
+      'Placed': 'Your order has been placed successfully',
+      'Confirmed': 'Your order has been confirmed by the seller',
+      'Shipped': 'Your order has been shipped and is on its way',
+      'Out for Delivery': 'Your order is out for delivery',
+      'Delivered': 'Your order has been delivered successfully',
+      'Cancelled': 'Your order has been cancelled',
+    };
+
+    // Add new tracking entry
+    this.tracking.push({
+      status: this.orderStatus,
+      date: new Date(),
+      message: statusMessages[this.orderStatus] || 'Order status updated',
+    });
+  }
   next();
 });
 

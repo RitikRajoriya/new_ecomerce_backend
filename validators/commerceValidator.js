@@ -77,7 +77,7 @@ const validateCreateOrder = [
 const validateUpdateOrderStatus = [
   body('orderStatus')
     .optional()
-    .isIn(['pending', 'processing', 'shipped', 'delivered', 'cancelled'])
+    .isIn(['Placed', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'])
     .withMessage('Valid order status is required'),
   body('paymentStatus')
     .optional()

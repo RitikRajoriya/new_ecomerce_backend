@@ -35,7 +35,11 @@ exports.createNewsletter = async (req, res) => {
 // Get all newsletters
 exports.getNewsletters = async (req, res) => {
   try {
-    const newsletters = await Newsletter.find({ isActive: true }).populate('createdBy', 'name email').sort({ createdAt: -1 });
+    // Filter by both isActive AND visible fields
+    const newsletters = await Newsletter.find({ 
+      isActive: true,
+      visible: true  // Only return visible newsletters
+    }).populate('createdBy', 'name email').sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -89,11 +93,17 @@ exports.updateNewsletter = async (req, res) => {
       });
     }
 
-    // Build media URLs if new files uploaded
-    const media = req.files ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`) : newsletter.media;
+    // Build media URLs - only update if new files are uploaded
+    let media = newsletter.media; // Keep existing media by default
+    
+    if (req.files && req.files.length > 0) {
+      // New files uploaded - replace media with new ones
+      media = req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`);
+    }
+    // If no files uploaded, keep the existing media
 
     newsletter.title = title || newsletter.title;
-    newsletter.content = content || newsletter.content;
+    newsletter.content = content !== undefined ? content : newsletter.content;
     newsletter.media = media;
 
     await newsletter.save();
@@ -132,6 +142,48 @@ exports.deleteNewsletter = async (req, res) => {
       message: 'Newsletter deleted successfully',
     });
   } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
+// Toggle visibility (Admin only)
+exports.toggleVisibility = async (req, res) => {
+  try {
+    console.log('=== TOGGLE VISIBILITY CALLED ===');
+    console.log('Request ID:', req.params.id);
+    console.log('Request Body:', req.body);
+    
+    const { visible } = req.body;
+    const newsletter = await Newsletter.findById(req.params.id);
+
+    if (!newsletter) {
+      console.log('Newsletter not found!');
+      return res.status(404).json({
+        success: false,
+        message: 'Newsletter not found',
+      });
+    }
+
+    console.log('Current visible status:', newsletter.visible);
+    console.log('New visible status:', visible !== undefined ? visible : !newsletter.visible);
+
+    newsletter.visible = visible !== undefined ? visible : !newsletter.visible;
+    await newsletter.save();
+
+    console.log('Successfully toggled visibility!');
+    console.log('=================================\n');
+
+    res.status(200).json({
+      success: true,
+      message: 'Visibility updated successfully',
+      data: newsletter,
+    });
+  } catch (error) {
+    console.error('Toggle visibility error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

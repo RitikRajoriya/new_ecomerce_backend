@@ -22,6 +22,10 @@ const newsletterSchema = new mongoose.Schema(
         message: 'Media must be a valid URL or local path'
       }
     }],
+    visible: {
+      type: Boolean,
+      default: true,
+    },
     isActive: {
       type: Boolean,
       default: true,

@@ -18,40 +18,73 @@ const productSchema = new mongoose.Schema(
       ref: 'Subcategory',
       required: [true, 'Please provide a subcategory'],
     },
-    images: [{
+    productType: {
       type: String,
+      enum: ['SIZE', 'UNIT', 'SINGLE'],
+      default: 'SINGLE',
+    },
+    images: {
+      type: [String],
+      default: [],
       validate: {
         validator: function(v) {
-          return /^https?:\/\/.+/.test(v);
+          return !v || v.every(url => /^https?:\/\/.+/.test(url));
         },
         message: 'Image must be a valid URL'
       }
-    }],
+    },
     banner: {
       type: String,
       default: null,
     },
-    variations: [{
-      size: {
-        type: String,
-         required: true,
-      },
-      price: {
-        type: Number,
-        required: true,
-        min: [0, 'Price cannot be negative'],
-      },
-      stock: {
-        type: Number,
-        required: true,
-        min: [0, 'Stock cannot be negative'],
-        default: 0,
-      },
-    }],
+    variations: {
+      type: [{
+        size: {
+          type: String,
+          required: function() {
+            return this.productType === 'SIZE' || this.productType === 'UNIT';
+          },
+        },
+        unit: {
+          type: String,
+          required: function() {
+            return this.productType === 'UNIT';
+          },
+        },
+        value: {
+          type: Number,
+          required: function() {
+            return this.productType === 'UNIT';
+          },
+        },
+        price: {
+          type: Number,
+          required: true,
+          min: [0, 'Price cannot be negative'],
+        },
+        stock: {
+          type: Number,
+          required: true,
+          min: [0, 'Stock cannot be negative'],
+          default: 0,
+        },
+      }],
+      default: [],
+    },
     brand: {
       type: String,
       trim: true,
       maxlength: [50, 'Brand name cannot be more than 50 characters'],
+    },
+    taxRate: {
+      type: Number,
+      enum: [0, 3, 5, 12, 18, 28],
+      default: 5,
+    },
+    deliveryCharge: {
+      type: Number,
+      default: 0,
+      min: [0, 'Delivery charge cannot be negative'],
     },
     isActive: {
       type: Boolean,

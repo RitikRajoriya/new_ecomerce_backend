@@ -1,18 +1,50 @@
 const Product = require('../models/Product');
 const Subcategory = require('../models/Subcategory');
+const Category = require('../models/Category');
+
+// Helper function to get GST rate based on category
+const getGSTRate = async (categoryId) => {
+  try {
+    const category = await Category.findById(categoryId);
+    if (!category) return 0;
+    
+    const categoryName = category.name.toLowerCase();
+    
+    // Category-based GST rates
+    if (categoryName.includes('cloth')) return 5;
+    if (categoryName.includes('accessor')) return 3; // Jewellery, Accessories
+    if (categoryName.includes('jewell')) return 3;
+    if (categoryName.includes('bag')) return 5;
+    if (categoryName.includes('hand')) return 5;
+    
+    return 0; // Default
+  } catch (error) {
+    console.error('Error getting GST rate:', error);
+    return 0;
+  }
+};
+
+// Calculate base price from GST-included price (reverse GST calculation)
+const calculateBasePrice = (finalPrice, taxRate) => {
+  return finalPrice / (1 + taxRate / 100);
+};
+
+// Calculate tax amount from GST-included price
+const calculateTaxAmount = (finalPrice, taxRate) => {
+  const basePrice = calculateBasePrice(finalPrice, taxRate);
+  return finalPrice - basePrice;
+};
 
 // Create Product (Admin only)
 exports.createProduct = async (req, res) => {
   try {
-    let { name, description, subcategory, variations, brand } = req.body;
+    const { name, description, brand, category, subcategory, productType, taxRate, variations } = req.body;
 
-    console.log('Raw variations:', variations);
-    console.log('Type before parse:', typeof variations);
-
-    // Parse variations (form-data fix)
+    // Parse variations if string (form-data fix)
+    let parsedVariations = variations;
     if (typeof variations === 'string') {
       try {
-        variations = JSON.parse(variations);
+        parsedVariations = JSON.parse(variations);
       } catch (err) {
         return res.status(400).json({
           success: false,
@@ -20,22 +52,28 @@ exports.createProduct = async (req, res) => {
         });
       }
     }
-    
 
     // Validate variations
-    if (!Array.isArray(variations) || variations.length === 0) {
+    if (!parsedVariations || !Array.isArray(parsedVariations) || parsedVariations.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'At least one variation is required',
       });
     }
 
-   
-    const images = req.files
+    // Build image URLs
+    const images = req.files && req.files.length > 0 
       ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`)
       : [];
 
     // Check subcategory
+    if (!subcategory) {
+      return res.status(400).json({
+        success: false,
+        message: 'Subcategory is required',
+      });
+    }
+
     const existingSubcategory = await Subcategory.findById(subcategory);
     if (!existingSubcategory) {
       return res.status(400).json({
@@ -44,23 +82,50 @@ exports.createProduct = async (req, res) => {
       });
     }
 
-    // Duplicate size check
-    const sizes = variations.map(v => v.size);
-    if (new Set(sizes).size !== sizes.length) {
-      return res.status(400).json({
-        success: false,
-        message: 'Duplicate sizes are not allowed in variations',
-      });
+    // Auto-assign GST rate based on category if not provided
+    let finalTaxRate = taxRate;
+    if (!finalTaxRate && subcategory) {
+      finalTaxRate = await getGSTRate(existingSubcategory.category);
     }
+
+    // Prepare variations based on productType
+    const preparedVariations = parsedVariations.map(v => {
+      const variation = {
+        price: parseFloat(v.price),
+        stock: parseInt(v.stock),
+      };
+
+      if (productType === 'SIZE') {
+        if (!v.size) throw new Error('Size is required for SIZE type products');
+        variation.size = v.size;
+      } else if (productType === 'UNIT') {
+        if (!v.unit || v.value === undefined) {
+          throw new Error('Unit and value are required for UNIT type products');
+        }
+        variation.unit = v.unit;
+        variation.value = parseFloat(v.value);
+      } else if (productType === 'COLOR') {
+        if (!v.color) throw new Error('Color is required for COLOR type products');
+        variation.color = v.color;
+      } else {
+        // SINGLE or default
+        variation.size = 'M';
+      }
+
+      return variation;
+    });
 
     // Save product
     const product = new Product({
       name,
       description,
-      subcategory,
       brand,
-      variations,
-      images,
+      category: existingSubcategory.category,
+      subcategory,
+      productType: productType || 'SINGLE',
+      taxRate: finalTaxRate || 0,
+      variations: preparedVariations || [], // SAFE: Always array
+      images: images || [], // SAFE: Always array
     });
 
     await product.save();
@@ -72,10 +137,10 @@ exports.createProduct = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Create product error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message,
+      message: error.message || 'Server error',
     });
   }
 };
@@ -110,19 +175,41 @@ exports.getAllProducts = async (req, res) => {
 
     const total = await Product.countDocuments(query);
 
+    // Add calculated prices to each product (GST-inclusive pricing)
+    const productsWithPrices = products.map(product => {
+      const productObj = product.toObject();
+      let finalPrice = 0;
+      let basePrice = 0;
+      let taxAmount = 0;
+      
+      if (product.variations && product.variations.length > 0) {
+        finalPrice = product.variations[0].price; // GST-included price
+        basePrice = calculateBasePrice(finalPrice, product.taxRate);
+        taxAmount = calculateTaxAmount(finalPrice, product.taxRate);
+      }
+      
+      return {
+        ...productObj,
+        finalPrice,      // Price shown to customer (GST included)
+        basePrice,       // Base price before GST
+        taxAmount,       // GST amount
+        price: finalPrice, // For backward compatibility
+      };
+    });
+
     res.status(200).json({
       success: true,
       count: products.length,
       total,
       totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
-      products,
+      products: productsWithPrices || [], // SAFE: Always return array
     });
   } catch (error) {
+    console.error('Get products error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message,
+      message: error.message || 'Server error',
     });
   }
 };
@@ -138,13 +225,13 @@ exports.getProductsBySubcategory = async (req, res) => {
     res.status(200).json({
       success: true,
       count: products.length,
-      products,
+      products: products || [], // SAFE: Always return array
     });
   } catch (error) {
+    console.error('Get products by subcategory error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message,
+      message: error.message || 'Server error',
     });
   }
 };
@@ -161,15 +248,23 @@ exports.getProduct = async (req, res) => {
       });
     }
 
+    console.log('=== RAW PRODUCT FROM DB ===');
+    console.log('Product ID:', product._id);
+    console.log('Variations:', JSON.stringify(product.variations, null, 2));
+    console.log('Images:', JSON.stringify(product.images, null, 2));
+    console.log('Tax Rate:', product.taxRate);
+    console.log('Product Type:', product.productType);
+
+    // Return COMPLETE product object with ALL fields
     res.status(200).json({
       success: true,
-      product,
+      product: product
     });
   } catch (error) {
+    console.error('Get product error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message,
+      message: error.message || 'Server error',
     });
   }
 };
@@ -245,13 +340,10 @@ exports.getAllBanners = async (req, res) => {
 // Update product (Admin only)
 exports.updateProduct = async (req, res) => {
   try {
-    let { name, description, subcategory, variations, brand, isActive } = req.body;
+    const { name, description, brand, category, subcategory, productType, taxRate, variations, isActive } = req.body;
 
-    // Build image URLs if files uploaded
-    const images = req.files && req.files.length > 0 ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`) : undefined;
-
+    // Check if product exists
     const product = await Product.findById(req.params.id);
-
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -259,54 +351,67 @@ exports.updateProduct = async (req, res) => {
       });
     }
 
-    // Check if subcategory exists
-    if (subcategory) {
-      const existingSubcategory = await Subcategory.findById(subcategory);
-      if (!existingSubcategory) {
-        return res.status(400).json({
-          success: false,
-          message: 'Subcategory not found',
-        });
-      }
-    }
+    // Build image URLs
+    const images = req.files && req.files.length > 0 
+      ? req.files.map(file => `${req.protocol}://${req.get('host')}/uploads/${file.filename}`)
+      : [];
 
-    // Validate variations if provided
-  
-    if (variations) {
-      if (typeof variations === 'string') {
-        try {
-        variations = JSON.parse(variations);
+    // Parse variations if string
+    let parsedVariations = variations;
+    if (typeof variations === 'string') {
+      try {
+        parsedVariations = JSON.parse(variations);
       } catch (err) {
         return res.status(400).json({
           success: false,
           message: 'Variations must be valid JSON',
         });
       }
-      }
-    
+    }
 
-    // Validate variations
-    if (!Array.isArray(variations) || variations.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'At least one variation is required',
+    // Validate and prepare variations based on productType
+    if (parsedVariations && Array.isArray(parsedVariations)) {
+      const preparedVariations = parsedVariations.map(v => {
+        const variation = {
+          price: parseFloat(v.price),
+          stock: parseInt(v.stock),
+        };
+
+        if (productType === 'SIZE') {
+          if (!v.size) throw new Error('Size is required for SIZE type products');
+          variation.size = v.size;
+        } else if (productType === 'UNIT') {
+          if (!v.unit || v.value === undefined) {
+            throw new Error('Unit and value are required for UNIT type products');
+          }
+          variation.unit = v.unit;
+          variation.value = parseFloat(v.value);
+        } else if (productType === 'COLOR') {
+          if (!v.color) throw new Error('Color is required for COLOR type products');
+          variation.color = v.color;
+        } else {
+          variation.size = 'M';
+        }
+
+        return variation;
       });
-    }
-      const sizes = variations.map(v => v.size);
-      if (new Set(sizes).size !== sizes.length) {
-        return res.status(400).json({
-          success: false,
-          message: 'Duplicate sizes are not allowed in variations',
-        });
-      }
+
+      product.variations = preparedVariations;
     }
 
+    // Update fields
     product.name = name || product.name;
     product.description = description !== undefined ? description : product.description;
-    product.subcategory = subcategory || product.subcategory;
-    product.images = images !== undefined ? images : product.images;
-    product.variations = variations || product.variations;
     product.brand = brand !== undefined ? brand : product.brand;
+    product.category = category !== undefined ? category : product.category;
+    product.subcategory = subcategory || product.subcategory;
+    if (images && images.length > 0) {
+      product.images = images;
+    } else if (!product.images) {
+      product.images = []; // SAFE: Ensure array
+    }
+    if (productType) product.productType = productType;
+    if (taxRate !== undefined) product.taxRate = taxRate;
     product.isActive = isActive !== undefined ? isActive : product.isActive;
 
     await product.save();
@@ -317,10 +422,10 @@ exports.updateProduct = async (req, res) => {
       product,
     });
   } catch (error) {
+    console.error('Update product error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message,
+      message: error.message || 'Server error',
     });
   }
 };
@@ -454,6 +559,7 @@ exports.getSpecialDealProducts = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
 
+    // ONLY fetch products where isSpecialDeal is true AND dates are valid
     const deals = await Product.find({
       isSpecialDeal: true,
       isActive: true,
@@ -472,13 +578,14 @@ exports.getSpecialDealProducts = async (req, res) => {
       dealEndDate: { $gte: new Date() }
     });
 
+    // Return empty array if no deals - NO fallback products
     res.status(200).json({
       success: true,
       count: deals.length,
       total,
       totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
-      data: deals,
+      products: deals,  // Only real deals, empty if none exist
     });
   } catch (error) {
     res.status(500).json({
@@ -553,6 +660,7 @@ exports.updateSpecialDeal = async (req, res) => {
         dealDiscount: updatedProduct.dealDiscount,
         dealStartDate: updatedProduct.dealStartDate,
         dealEndDate: updatedProduct.dealEndDate,
+        product: updatedProduct, // Return full product object
       },
     });
   } catch (error) {

@@ -1,0 +1,1 @@
+  WRONG: Video.find({isPublished: true, visible: true}) ^ 

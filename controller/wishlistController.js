@@ -6,6 +6,7 @@ exports.getWishlist = async (req, res) => {
   try {
     let wishlist = await Wishlist.findOne({ user: req.userId }).populate({
       path: 'products.product',
+      select: 'name images brand variations price stock productType',
       populate: {
         path: 'subcategory',
         select: 'name'
@@ -13,7 +14,10 @@ exports.getWishlist = async (req, res) => {
     });
 
     if (!wishlist) {
-      wishlist = { user: req.userId, products: [] };
+      return res.status(200).json({
+        success: true,
+        wishlist: { user: req.userId, products: [] },
+      });
     }
 
     res.status(200).json({

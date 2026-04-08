@@ -14,7 +14,8 @@ router.get('/users/:userId/videos', videoController.getVideosByUser);
 
 // Protected routes (require authentication)
 router.post('/videos/upload', authMiddleware, uploadVideo, validateVideoUpload, videoController.uploadVideo);
-router.put('/videos/:id', authMiddleware, validateVideoUpdate, videoController.updateVideo);
+router.put('/videos/:id', authMiddleware, uploadVideo, validateVideoUpdate, videoController.updateVideo);
+router.patch('/videos/:id', authMiddleware, videoController.updateVideoVisibility); // For visibility toggle
 router.delete('/videos/:id', authMiddleware, videoController.deleteVideo);
 router.post('/videos/:id/like', authMiddleware, videoController.toggleVideoLike);
 

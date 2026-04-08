@@ -11,6 +11,8 @@ const orderRoutes = require('./routes/orderRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const videoRoutes = require('./routes/videoRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // Logger middleware
 const logger = require('./middleware/logger');
@@ -21,8 +23,54 @@ dotenv.config();
 // Initialize Express app
 const app = express();
 
-// Enable CORS for all origins
-app.use(cors({ origin: true }));
+// Handle preflight OPTIONS requests FIRST (before CORS)
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    console.log(`OPTIONS request received from: ${origin}`);
+    
+    // Only allow specific origins with credentials
+    if (allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      console.log(`✓ CORS allowed for: ${origin}`);
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+      console.log(`⚠ CORS fallback to * for: ${origin}`);
+    }
+    
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    console.log('✓ OPTIONS preflight responded with 200');
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Enable CORS for multiple frontend origins
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log(`Blocked by CORS: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 // Middleware
 // Log incoming requests to the console
@@ -33,8 +81,8 @@ app.use((req, res, next) => {
 app.use(logger); // Log all requests and responses
 // app.use(express.json());
 // app.use(express.urlencoded({ extended: true }));
-app.use(express.json({ limit: "100mb" }));
-app.use(express.urlencoded({ extended: true, limit: "100mb" }));
+app.use(express.json({ limit: "500mb" }));
+app.use(express.urlencoded({ extended: true, limit: "500mb" }));
 app.use('/uploads', express.static('uploads'));
 
 // API Routes
@@ -44,10 +92,14 @@ app.use('/api', productRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/invoices', require('./routes/invoiceRoutes'));
+app.use('/api/order-help', require('./routes/orderHelpRoutes'));
 app.use('/api/newsletters', newsletterRoutes);
 app.use('/api', analyticsRoutes);
 app.use('/api', videoRoutes);
 app.use('/api/support', require('./routes/supportRoutes'));
+app.use('/api/admin', settingsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -75,7 +127,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 const startServer = async () => {
   try {

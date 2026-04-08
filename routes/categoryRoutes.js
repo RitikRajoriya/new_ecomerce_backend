@@ -2,7 +2,7 @@ const express = require('express');
 const categoryController = require('../controller/categoryController');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { validateCategory, validateSubcategory } = require('../validators/categoryValidator');
-const uploadSingle = require('../middleware/uploadSingle');
+const { uploadSingle } = require('../middleware/uploadSingle');
 
 const router = express.Router();
 

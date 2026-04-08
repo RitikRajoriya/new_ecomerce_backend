@@ -1,6 +1,17 @@
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 
+// Calculate base price from GST-included price (reverse GST calculation)
+const calculateBasePrice = (finalPrice, taxRate) => {
+  return finalPrice / (1 + taxRate / 100);
+};
+
+// Calculate tax amount from GST-included price
+const calculateTaxAmount = (finalPrice, taxRate) => {
+  const basePrice = calculateBasePrice(finalPrice, taxRate);
+  return finalPrice - basePrice;
+};
+
 // Get user's cart
 exports.getCart = async (req, res) => {
   try {
@@ -29,34 +40,16 @@ exports.getCart = async (req, res) => {
   }
 };
 
-// Add item to cart
+// Add/update cart items (supports bulk update)
 exports.addToCart = async (req, res) => {
   try {
-    const { productId, size, quantity } = req.body;
+    const { items } = req.body;
 
-    // Check if product exists
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found',
-      });
-    }
-
-    // Check if size exists in product variations
-    const variation = product.variations.find(v => v.size === size);
-    if (!variation) {
+    // Validate items array
+    if (!items || !Array.isArray(items)) {
       return res.status(400).json({
         success: false,
-        message: 'Size not available for this product',
-      });
-    }
-
-    // Check stock
-    if (variation.stock < quantity) {
-      return res.status(400).json({
-        success: false,
-        message: 'Insufficient stock',
+        message: 'Items array is required',
       });
     }
 
@@ -66,35 +59,62 @@ exports.addToCart = async (req, res) => {
       cart = new Cart({ user: req.userId, items: [] });
     }
 
-    // Check if item already in cart
-    const existingItem = cart.items.find(item =>
-      item.product.toString() === productId && item.size === size
-    );
+    // Process each item in the bulk update
+    for (const item of items) {
+      const { productId, size = 'M', quantity, price } = item;
 
-    if (existingItem) {
-      existingItem.quantity += quantity;
-      existingItem.price = variation.price; // Update price in case it changed
-    } else {
-      cart.items.push({
-        product: productId,
-        size,
-        quantity,
-        price: variation.price,
-      });
+      // Validate product ID
+      if (!productId) {
+        continue; // Skip items without productId
+      }
+
+      // Check if product exists
+      const product = await Product.findById(productId);
+      if (!product) {
+        continue; // Skip invalid products
+      }
+
+      // Determine the actual price from product if not provided
+      let itemPrice = price;
+      if (!itemPrice && product.variations && product.variations.length > 0) {
+        const variation = product.variations.find(v => v.size === size);
+        itemPrice = variation ? variation.price : product.price || 0;
+      } else if (!itemPrice) {
+        itemPrice = product.price || 0;
+      }
+
+      // Check if item already in cart
+      const existingItem = cart.items.find(cartItem =>
+        cartItem.product.toString() === productId && cartItem.size === size
+      );
+
+      if (existingItem) {
+        // Update existing item
+        existingItem.quantity = quantity;
+        existingItem.price = itemPrice;
+      } else {
+        // Add new item
+        cart.items.push({
+          product: productId,
+          size: size,
+          quantity: quantity,
+          price: itemPrice,
+        });
+      }
     }
 
     await cart.save();
 
     res.status(200).json({
       success: true,
-      message: 'Item added to cart',
+      message: 'Cart updated successfully',
       cart,
     });
   } catch (error) {
+    console.error('Add to cart error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message,
+      message: error.message || 'Server error',
     });
   }
 };
@@ -130,15 +150,33 @@ exports.updateCartItem = async (req, res) => {
         !(cartItem.product.toString() === productId && cartItem.size === size)
       );
     } else {
-      // Check stock
+      // Check stock - handle products with and without variations
       const product = await Product.findById(productId);
-      const variation = product.variations.find(v => v.size === size);
-
-      if (variation.stock < quantity) {
-        return res.status(400).json({
-          success: false,
-          message: 'Insufficient stock',
-        });
+      
+      if (product.variations && product.variations.length > 0) {
+        const variation = product.variations.find(v => v.size === size);
+        
+        if (!variation) {
+          return res.status(400).json({
+            success: false,
+            message: 'Size not available',
+          });
+        }
+        
+        if (variation.stock < quantity) {
+          return res.status(400).json({
+            success: false,
+            message: 'Insufficient stock',
+          });
+        }
+      } else {
+        // No variations - check base stock
+        if (product.stock !== undefined && product.stock < quantity) {
+          return res.status(400).json({
+            success: false,
+            message: 'Insufficient stock',
+          });
+        }
       }
 
       item.quantity = quantity;
@@ -152,10 +190,10 @@ exports.updateCartItem = async (req, res) => {
       cart,
     });
   } catch (error) {
+    console.error('Update cart error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message,
+      message: error.message || 'Server error',
     });
   }
 };

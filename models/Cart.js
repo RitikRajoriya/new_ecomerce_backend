@@ -16,7 +16,9 @@ const cartSchema = new mongoose.Schema(
       size: {
         type: String,
         required: true,
-        enum: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'],
+      },
+      unit: {
+        type: String,
       },
       quantity: {
         type: Number,
@@ -27,6 +29,10 @@ const cartSchema = new mongoose.Schema(
         type: Number,
         required: true,
         min: [0, 'Price cannot be negative'],
+      },
+      taxAmount: {
+        type: Number,
+        default: 0,
       },
       addedAt: {
         type: Date,

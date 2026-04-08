@@ -37,10 +37,10 @@ function checkFileType(file, cb) {
   }
 }
 
-// Multer upload instance for videos
+// Multer upload instance for videos (ALLOW ANY SIZE UP TO 500MB)
 const uploadVideo = multer({
   storage: storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for videos
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB limit for videos
   fileFilter: function (req, file, cb) {
     checkFileType(file, cb);
   }

@@ -59,6 +59,15 @@ exports.uploadVideo = async (req, res) => {
     });
   } catch (error) {
     console.error('Error uploading video:', error);
+    
+    // Handle Multer file size error specifically
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: `File size exceeds the maximum limit of 500MB. Your file is ${Math.round(error.size / (1024 * 1024))}MB`,
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Error uploading video',
@@ -70,17 +79,37 @@ exports.uploadVideo = async (req, res) => {
 // Get all videos
 exports.getAllVideos = async (req, res) => {
   try {
-    const { page = 1, limit = 10, sortBy = '-createdAt' } = req.query;
+    const { page = 1, limit = 100, sortBy = '-createdAt' } = req.query; // Changed default limit to 100
 
-    const videos = await Video.find({ isPublished: true })
+    // Disable caching - always fetch fresh data
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
+    console.log('=== GET ALL VIDEOS DEBUG ===');
+    console.log('Page:', page);
+    console.log('Limit:', limit);
+    console.log('Sort:', sortBy);
+
+    // FIXED: Only filter by isPublished (Video model doesn't have 'visible' field)
+    const videos = await Video.find({ 
+      isPublished: true
+    })
       .populate('userId', 'name email')
       .populate('likedBy', 'name')
       .sort(sortBy)
-      .limit(limit * 1)
+      .limit(parseInt(limit)) // Make sure limit is integer
       .skip((page - 1) * limit)
       .exec();
 
-    const count = await Video.countDocuments({ isPublished: true });
+    console.log('Videos found:', videos.length);
+    console.log('Video IDs:', videos.map(v => v._id));
+
+    const count = await Video.countDocuments({ 
+      isPublished: true
+    });
+
+    console.log('Total count:', count);
 
     res.status(200).json({
       success: true,
@@ -177,9 +206,22 @@ exports.getVideosByUser = async (req, res) => {
 // Update video (title, description)
 exports.updateVideo = async (req, res) => {
   try {
+    console.log('=== UPDATE VIDEO DEBUG ===');
+    console.log('Request body:', req.body);
+    console.log('Request files:', req.file);
+    console.log('Video ID:', req.params.id);
+    
     const { id } = req.params;
-    const { title, description, tags } = req.body;
     const userId = req.userId;
+
+    // Get fields from FormData (parsed by Multer into req.body)
+    const title = req.body.title;
+    const description = req.body.description;
+    const tags = req.body.tags;
+
+    console.log('Title:', title);
+    console.log('Description:', description);
+    console.log('Tags:', tags);
 
     const video = await Video.findById(id);
 
@@ -198,29 +240,94 @@ exports.updateVideo = async (req, res) => {
       });
     }
 
-    // Update fields
-    if (title) video.title = title;
-    if (description) video.description = description;
-    if (tags) {
+    // Build update object with only provided fields
+    const updateData = {};
+    
+    if (title !== undefined && title !== null && title !== '') {
+      updateData.title = title;
+    }
+    
+    if (description !== undefined && description !== null && description !== '') {
+      updateData.description = description;
+    }
+    
+    if (tags !== undefined && tags !== null && tags !== '') {
       try {
-        video.tags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+        updateData.tags = typeof tags === 'string' ? JSON.parse(tags) : tags.split(',').filter(t => t.trim());
       } catch (err) {
-        video.tags = typeof tags === 'string' ? tags.split(',') : tags;
+        updateData.tags = typeof tags === 'string' ? tags.split(',') : [];
       }
     }
 
-    await video.save();
+    console.log('Update data:', updateData);
+
+    // Update using findByIdAndUpdate
+    const updatedVideo = await Video.findByIdAndUpdate(
+      id,
+      updateData,
+      { 
+        new: true,           // Return updated document
+        runValidators: true  // Run schema validators
+      }
+    );
+
+    console.log('Updated video:', updatedVideo._id);
+    console.log('Updated at:', updatedVideo.updatedAt);
 
     res.status(200).json({
       success: true,
       message: 'Video updated successfully',
-      data: video,
+      data: updatedVideo,
     });
   } catch (error) {
     console.error('Error updating video:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating video',
+      error: error.message,
+    });
+  }
+};
+
+// Update video visibility (toggle isPublished)
+exports.updateVideoVisibility = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isVisible, visible, isPublished } = req.body;
+
+    // Accept both 'isVisible', 'visible', or 'isPublished' field names
+    const newVisibility = isVisible !== undefined ? isVisible : (visible !== undefined ? visible : isPublished);
+
+    if (newVisibility === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Visibility status required',
+      });
+    }
+
+    const video = await Video.findByIdAndUpdate(
+      id,
+      { isPublished: newVisibility },
+      { new: true }
+    );
+
+    if (!video) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Video visibility updated',
+      data: video,
+    });
+  } catch (error) {
+    console.error('Error updating video visibility:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating video visibility',
       error: error.message,
     });
   }
