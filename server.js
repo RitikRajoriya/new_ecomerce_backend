@@ -102,10 +102,10 @@ app.use('/api/admin', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 // Health check route
-app.get('/api/health', (req, res) => {
+app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Server is running',
+    message: 'Server2 is running',
   });
 });
 
