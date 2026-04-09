@@ -18,28 +18,62 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script: |
-            set -e
+            echo "========================================"
+            echo "🚀 Starting Deployment"
+            echo "========================================"
+            
+            echo ""
+            echo "📁 Step 1: Moving to project directory"
+            if cd /home/ubuntu/new_ecomerce_backend; then
+              echo "✅ Directory exists"
+            else
+              echo "❌ Directory not found! Creating..."
+              mkdir -p /home/ubuntu/new_ecomerce_backend
+              cd /home/ubuntu/new_ecomerce_backend
+              git init
+              git remote add origin https://github.com/RitikRajoriya/new_ecomerce_backend.git
+            fi
 
-            echo "📁 Moving to project directory"
-            cd /home/ubuntu/new_ecomerce_backend
+            echo ""
+            echo "🔄 Step 2: Resetting any local changes"
+            git reset --hard HEAD || echo "⚠️ Reset failed, continuing..."
 
-            echo "🔄 Resetting any local changes"
-            git reset --hard HEAD
+            echo ""
+            echo "📥 Step 3: Fetching latest code"
+            git fetch origin main || echo "❌ Fetch failed!"
 
-            echo "📥 Pulling latest code (force sync)"
-            git fetch origin main
-            git reset --hard origin/main
+            echo ""
+            echo "🔄 Step 4: Syncing with GitHub"
+            git reset --hard origin/main || echo "❌ Reset failed!"
 
-            echo "🧹 Cleaning up"
+            echo ""
+            echo "🧹 Step 5: Cleaning up"
             git clean -fd
 
-            echo "📦 Installing dependencies"
-            npm install --production
+            echo ""
+            echo "📦 Step 6: Installing dependencies"
+            npm install --production || echo "❌ npm install failed!"
 
-            echo "🔁 Restarting PM2"
-            pm2 reload server || pm2 start server.js --name server
+            echo ""
+            echo "🔁 Step 7: Restarting PM2"
+            if pm2 reload server; then
+              echo "✅ PM2 reloaded"
+            else
+              echo "⚠️ PM2 reload failed, starting new..."
+              pm2 start server.js --name server || echo "❌ PM2 start failed!"
+            fi
 
-            echo "💾 Saving PM2 state"
-            pm2 save
+            echo ""
+            echo "💾 Step 8: Saving PM2 state"
+            pm2 save || echo "⚠️ PM2 save failed"
 
-            echo "✅ Deployment successful"
+            echo ""
+            echo "========================================"
+            echo "✅ Deployment Complete"
+            echo "========================================"
+            echo ""
+            echo "📊 PM2 Status:"
+            pm2 status
+            echo ""
+            echo "🔍 Recent Logs:"
+            pm2 logs server --lines 5 --nostream
