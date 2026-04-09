@@ -61,17 +61,30 @@ exports.addToCart = async (req, res) => {
 
     // Process each item in the bulk update
     for (const item of items) {
-      const { productId, size = 'M', quantity, price } = item;
+      const { productId, size = 'single', quantity, price } = item;
 
-      // Validate product ID
+      // Validate required fields
       if (!productId) {
-        continue; // Skip items without productId
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed: productId is required',
+        });
+      }
+
+      if (!quantity || quantity < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed: quantity must be at least 1',
+        });
       }
 
       // Check if product exists
       const product = await Product.findById(productId);
       if (!product) {
-        continue; // Skip invalid products
+        return res.status(404).json({
+          success: false,
+          message: `Product not found: ${productId}`,
+        });
       }
 
       // Determine the actual price from product if not provided

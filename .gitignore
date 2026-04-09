@@ -2,3 +2,7 @@
 node_modules/
 .env.*
 upload/
+uploads/
+uploads/**/*.mp4
+uploads/**/*.mov
+uploads/**/*.avi

@@ -27,8 +27,9 @@ const validateAddToCart = [
     .isMongoId()
     .withMessage('Valid product ID is required'),
   body('size')
-    .isIn(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'])
-    .withMessage('Valid size is required'),
+    .optional()
+    .isString()
+    .withMessage('Size must be a string'),
   body('quantity')
     .isInt({ min: 1 })
     .withMessage('Quantity must be at least 1'),
@@ -40,8 +41,9 @@ const validateUpdateCart = [
     .isMongoId()
     .withMessage('Valid product ID is required'),
   body('size')
-    .isIn(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'])
-    .withMessage('Valid size is required'),
+    .optional()
+    .isString()
+    .withMessage('Size must be a string'),
   body('quantity')
     .isInt({ min: 0 })
     .withMessage('Quantity must be 0 or more'),
