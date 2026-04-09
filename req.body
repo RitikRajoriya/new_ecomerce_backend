@@ -1,1 +1,0 @@
-  FormData was being sent but backend expected JSON ^ undefined 
