@@ -29,18 +29,23 @@ app.use((req, res, next) => {
     const origin = req.headers.origin;
     console.log(`OPTIONS request received from: ${origin}`);
     
-    // Only allow specific origins with credentials
-    if (allowedOrigins.includes(origin)) {
+    // Allow specific origins or indianhandicraftshop.com domain
+    if (allowedOrigins.includes(origin) || (origin && origin.includes('indianhandicraftshop.com'))) {
       res.header('Access-Control-Allow-Origin', origin);
       console.log(`✓ CORS allowed for: ${origin}`);
-    } else {
+    } else if (!origin) {
+      // Allow requests with no origin
       res.header('Access-Control-Allow-Origin', '*');
-      console.log(`⚠ CORS fallback to * for: ${origin}`);
+      console.log(`✓ CORS allowed (no origin)`);
+    } else {
+      res.header('Access-Control-Allow-Origin', origin);
+      console.log(`⚠ CORS fallback for: ${origin}`);
     }
     
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
     res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '600');
     console.log('✓ OPTIONS preflight responded with 200');
     return res.sendStatus(200);
   }
@@ -52,7 +57,13 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://indianhandicraftshop.com',
+  'https://www.indianhandicraftshop.com',
+  'https://admin.indianhandicraftshop.com',
   process.env.FRONTEND_URL,
+  process.env.ADMIN_URL,
 ].filter(Boolean);
 
 app.use(cors({
@@ -63,13 +74,20 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      // In production, allow all origins from indianhandicraftshop.com domain
+      if (origin.includes('indianhandicraftshop.com')) {
+        console.log(`✓ CORS allowed for domain: ${origin}`);
+        return callback(null, true);
+      }
       console.log(`Blocked by CORS: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 600, // Cache preflight request for 10 minutes
 }));
 
 // Middleware
