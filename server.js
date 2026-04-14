@@ -91,17 +91,56 @@ app.use(cors({
 }));
 
 // Middleware
-// Log incoming requests to the console
-app.use((req, res, next) => {
-  console.log(`REQUEST: ${req.method} ${req.url} | Headers: ${JSON.stringify(req.headers)} | Body: ${JSON.stringify(req.body)}`);
-  next();
-});
+// Log incoming requests to the console (ONLY in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`REQUEST: ${req.method} ${req.url}`);
+    next();
+  });
+} else {
+  // In production, only log errors
+  app.use((req, res, next) => {
+    // Skip logging for successful requests to improve performance
+    const originalSend = res.send;
+    res.send = function(body) {
+      if (res.statusCode >= 400) {
+        console.log(`ERROR: ${req.method} ${req.url} - Status: ${res.statusCode}`);
+      }
+      return originalSend.call(this, body);
+    };
+    next();
+  });
+}
 app.use(logger); // Log all requests and responses
 // app.use(express.json());
 // app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: "500mb" }));
 app.use(express.urlencoded({ extended: true, limit: "500mb" }));
 app.use('/uploads', express.static('uploads'));
+
+// Health check endpoint (for monitoring)
+app.get('/api/health', async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    
+    res.json({
+      success: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      database: dbStatus,
+      environment: process.env.NODE_ENV || 'development',
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: 'unhealthy',
+      error: error.message,
+    });
+  }
+});
 
 // API Routes
 app.use('/api/auth', authRoutes);

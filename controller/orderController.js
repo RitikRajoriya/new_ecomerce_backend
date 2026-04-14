@@ -523,6 +523,15 @@ exports.createRazorpayOrder = async (req, res) => {
       });
     }
 
+    // Validate Razorpay credentials
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      console.error('Razorpay credentials missing in .env file');
+      return res.status(500).json({
+        success: false,
+        message: 'Payment gateway not configured. Please contact support.',
+      });
+    }
+
     // Initialize Razorpay (cached instance for performance)
     const Razorpay = require('razorpay');
     const razorpay = new Razorpay({
@@ -546,10 +555,22 @@ exports.createRazorpayOrder = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Razorpay order creation error:', err);
+    console.error('Razorpay order creation error:', err.message);
+    
+    // Provide user-friendly error messages
+    let errorMessage = 'Failed to create payment order';
+    
+    if (err.message.includes('auth')) {
+      errorMessage = 'Payment gateway authentication failed';
+    } else if (err.message.includes('network')) {
+      errorMessage = 'Network error connecting to payment gateway';
+    } else if (err.message) {
+      errorMessage = err.message;
+    }
+    
     res.status(500).json({
       success: false,
-      message: err.message,
+      message: errorMessage,
     });
   }
 };
