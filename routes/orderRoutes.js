@@ -11,7 +11,7 @@ router.get('/my-orders', authMiddleware, orderController.getUserOrders);
 router.get('/:id', authMiddleware, orderController.getOrder);
 router.get('/:id/track', authMiddleware, orderController.trackOrder);
 router.put('/:id/cancel', authMiddleware, orderController.cancelOrder);
-router.post('/razorpay/create', authMiddleware, orderController.createRazorpayOrder);
+router.post('/cashfree/create', authMiddleware, orderController.createCashfreeOrder);
 
 // Admin routes (require admin authentication)
 router.get('/', authMiddleware, adminMiddleware, orderController.getAllOrders);

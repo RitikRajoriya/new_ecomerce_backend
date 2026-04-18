@@ -511,8 +511,8 @@ exports.trackOrder = async (req, res) => {
   }
 };
 
-// Create Razorpay order - optimized for fast response
-exports.createRazorpayOrder = async (req, res) => {
+// Create Cashfree order - optimized for fast response
+exports.createCashfreeOrder = async (req, res) => {
   try {
     const { amount } = req.body;
 
@@ -523,44 +523,113 @@ exports.createRazorpayOrder = async (req, res) => {
       });
     }
 
-    // Validate Razorpay credentials
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      console.error('Razorpay credentials missing in .env file');
+    // Environment-based configuration
+    const cashfreeEnv = process.env.CASHFREE_ENV || 'sandbox';
+    
+    let appId, secretKey, baseUrl;
+    
+    if (cashfreeEnv === 'production') {
+      appId = process.env.CASHFREE_PROD_APP_ID || process.env.CASHFREE_APP_ID;
+      secretKey = process.env.CASHFREE_PROD_SECRET_KEY || process.env.CASHFREE_SECRET_KEY;
+      baseUrl = 'https://api.cashfree.com/pg';
+    } else {
+      appId = process.env.CASHFREE_SANDBOX_APP_ID || process.env.CASHFREE_APP_ID;
+      secretKey = process.env.CASHFREE_SANDBOX_SECRET_KEY || process.env.CASHFREE_SECRET_KEY;
+      baseUrl = 'https://sandbox.cashfree.com/pg';
+    }
+
+    // Validate Cashfree credentials
+    if (!appId || !secretKey) {
+      console.error('Cashfree credentials missing in .env file');
       return res.status(500).json({
         success: false,
         message: 'Payment gateway not configured. Please contact support.',
       });
     }
 
-    // Initialize Razorpay (cached instance for performance)
-    const Razorpay = require('razorpay');
-    const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    console.log('Creating Cashfree order:', {
+      env: cashfreeEnv,
+      amount,
+      baseUrl,
+      appId: appId.substring(0, 10) + '***'
     });
 
-    // Create order with minimal fields
-    const order = await razorpay.orders.create({
-      amount: Math.round(amount * 100), // Convert to paise
-      currency: 'INR',
-    });
+    // Use Cashfree REST API directly with axios
+    const axios = require('axios');
 
-    // Return only necessary fields for faster response
-    res.json({
-      success: true,
-      order: {
-        id: order.id,
-        amount: order.amount,
-        currency: order.currency,
+    // Create order request
+    const orderData = {
+      order_id: `ORD_${Date.now()}_${req.userId}`,
+      order_amount: parseFloat(amount),
+      order_currency: 'INR',
+      customer_details: {
+        customer_id: req.userId || 'guest',
+        customer_phone: '9999999999', // Default phone, can be updated from user profile
+      },
+      order_meta: {
+        return_url: `${(process.env.FRONTEND_URL || 'https://indianhandicraftshop.com').replace('http://', 'https://')}/orders?order_id={order_id}`,
+      },
+    };
+
+    console.log('Cashfree order request:', orderData);
+
+    console.log('=== Cashfree Order Creation ===');
+    console.log('Cashfree ENV:', cashfreeEnv);
+    console.log('Cashfree URL:', `${baseUrl}/orders`);
+    console.log('App ID:', appId);
+    console.log('Amount:', amount);
+    console.log('Order Data:', orderData);
+
+    // Create order with Cashfree API
+    const response = await axios.post(`${baseUrl}/orders`, orderData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-client-id': appId,
+        'x-client-secret': secretKey,
+        'x-api-version': '2023-08-01',
       },
     });
+
+    console.log('Cashfree order created successfully:', response.data.order_id);
+    console.log('Payment Session ID:', response.data.payment_session_id);
+    
+    // Verify payment_session_id exists
+    if (!response.data.payment_session_id) {
+      console.error('ERROR: Cashfree did not return payment_session_id');
+      console.error('Full Cashfree response:', response.data);
+      return res.status(500).json({
+        success: false,
+        message: 'Payment gateway error. Please try again.',
+      });
+    }
+    
+    // Return necessary fields
+    res.json({
+      success: true,
+      order_id: response.data.order_id,
+      payment_session_id: response.data.payment_session_id,
+      order_amount: response.data.order_amount,
+      order_currency: response.data.order_currency,
+    });
   } catch (err) {
-    console.error('Razorpay order creation error:', err.message);
+    // Enhanced error logging
+    console.error('=== Cashfree Order Creation Error ===');
+    console.error('Cashfree ENV:', process.env.CASHFREE_ENV);
+    console.error('Cashfree URL:', `${baseUrl}/orders`);
+    console.error('Cashfree error status:', err.response?.status);
+    console.error('Cashfree error data:', err.response?.data);
+    console.error('Error message:', err.message);
+    console.error('Full Error:', err);
+    console.error('=====================================');
     
     // Provide user-friendly error messages
     let errorMessage = 'Failed to create payment order';
     
-    if (err.message.includes('auth')) {
+    if (err.response?.data?.message) {
+      errorMessage = err.response.data.message;
+    } else if (err.response?.status === 401) {
+      errorMessage = 'Payment gateway authentication failed. Please check configuration.';
+    } else if (err.message.includes('auth') || err.message.includes('invalid')) {
       errorMessage = 'Payment gateway authentication failed';
     } else if (err.message.includes('network')) {
       errorMessage = 'Network error connecting to payment gateway';
@@ -571,6 +640,7 @@ exports.createRazorpayOrder = async (req, res) => {
     res.status(500).json({
       success: false,
       message: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? err.response?.data : undefined,
     });
   }
 };

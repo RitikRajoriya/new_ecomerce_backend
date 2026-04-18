@@ -190,7 +190,32 @@ const startServer = async () => {
   try {
     await connectDB();
     app.listen(PORT, () => {
+      console.log(`\n========================================`);
       console.log(`Server running on port ${PORT}`);
+      console.log(`========================================`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`Cashfree ENV: ${process.env.CASHFREE_ENV || 'sandbox'}`);
+      console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'not set'}`);
+      console.log(`API URL: ${process.env.API_BASE_URL || 'not set'}`);
+      
+      // Verify Cashfree configuration
+      if (process.env.CASHFREE_ENV === 'production') {
+        console.log(`\n✅ PRODUCTION MODE ACTIVE`);
+        console.log(`Cashfree App ID: ${process.env.CASHFREE_PROD_APP_ID ? 'Configured' : 'MISSING'}`);
+        console.log(`Cashfree Secret: ${process.env.CASHFREE_PROD_SECRET_KEY ? 'Configured' : 'MISSING'}`);
+        console.log(`Payment Endpoint: https://api.cashfree.com/pg/orders`);
+        
+        if (!process.env.CASHFREE_PROD_APP_ID || !process.env.CASHFREE_PROD_SECRET_KEY) {
+          console.error('\n❌ ERROR: Production Cashfree credentials missing!');
+          console.error('Please set CASHFREE_PROD_APP_ID and CASHFREE_PROD_SECRET_KEY in .env');
+        }
+      } else {
+        console.log(`\n🔧 SANDBOX MODE ACTIVE`);
+        console.log(`Cashfree App ID: ${process.env.CASHFREE_SANDBOX_APP_ID ? 'Configured' : 'MISSING'}`);
+        console.log(`Payment Endpoint: https://sandbox.cashfree.com/pg/orders`);
+      }
+      
+      console.log(`========================================\n`);
     });
   } catch (error) {
     console.error('Failed to start server:', error.message);
