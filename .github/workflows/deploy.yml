@@ -23,13 +23,17 @@ jobs:
             echo "========================================"
             
             echo ""
+            echo "📦 Step 0: Ensuring PM2 is installed"
+            npm install -g pm2 || echo "⚠️ PM2 install warning"
+            
+            echo ""
             echo "📁 Step 1: Moving to project directory"
-            if cd /home/ubuntu/new_ecomerce_backend; then
+            if cd /var/www/backend; then
               echo "✅ Directory exists"
             else
               echo "❌ Directory not found! Creating..."
-              mkdir -p /home/ubuntu/new_ecomerce_backend
-              cd /home/ubuntu/new_ecomerce_backend
+              mkdir -p /var/www/backend
+              cd /var/www/backend
               git init
               git remote add origin https://github.com/RitikRajoriya/new_ecomerce_backend.git
             fi
@@ -51,20 +55,50 @@ jobs:
             git clean -fd
 
             echo ""
-            echo "📦 Step 6: Installing dependencies"
+            echo "📝 Step 6: Creating .env file from GitHub Secrets"
+            cat > .env << EOF
+            # Production Environment
+            NODE_ENV=production
+            PORT=5001
+            
+            # Database
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
+            
+            # JWT
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRE=7d
+            
+            # Frontend URLs
+            FRONTEND_URL=https://indianhandicraftshop.com
+            ADMIN_URL=https://admin.indianhandicraftshop.com
+            API_BASE_URL=https://api.indianhandicraftshop.com
+            
+            # Cashfree Production
+            CASHFREE_ENV=production
+            CASHFREE_PROD_APP_ID=${{ secrets.CASHFREE_PROD_APP_ID }}
+            CASHFREE_PROD_SECRET_KEY=${{ secrets.CASHFREE_PROD_SECRET_KEY }}
+            
+            # Cashfree Sandbox (for reference - not used in production)
+            # CASHFREE_SANDBOX_APP_ID and CASHFREE_SANDBOX_SECRET_KEY should be added to GitHub secrets if needed
+            
+            # Legacy support
+            CASHFREE_APP_ID=${{ secrets.CASHFREE_PROD_APP_ID }}
+            CASHFREE_SECRET_KEY=${{ secrets.CASHFREE_PROD_SECRET_KEY }}
+            CASHFREE_MODE=production
+            EOF
+            echo "✅ .env file created"
+
+            echo ""
+            echo "📦 Step 7: Installing dependencies"
             npm install --production || echo "❌ npm install failed!"
 
             echo ""
-            echo "🔁 Step 7: Restarting PM2"
-            if pm2 reload server; then
-              echo "✅ PM2 reloaded"
-            else
-              echo "⚠️ PM2 reload failed, starting new..."
-              pm2 start server.js --name server || echo "❌ PM2 start failed!"
-            fi
+            echo "🔁 Step 8: Restarting PM2"
+            pm2 delete ecommerce-api || true
+            pm2 start server.js --name ecommerce-api || echo "❌ PM2 start failed!"
 
             echo ""
-            echo "💾 Step 8: Saving PM2 state"
+            echo "💾 Step 9: Saving PM2 state"
             pm2 save || echo "⚠️ PM2 save failed"
 
             echo ""
@@ -73,7 +107,12 @@ jobs:
             echo "========================================"
             echo ""
             echo "📊 PM2 Status:"
-            pm2 status
+            pm2 list
             echo ""
             echo "🔍 Recent Logs:"
-            pm2 logs server --lines 5 --nostream
+            pm2 logs ecommerce-api --lines 50 --nostream
+            echo ""
+            echo "🔍 Environment Check:"
+            echo "Cashfree ENV: $(grep CASHFREE_ENV .env)"
+            echo "Node Version: $(node --version)"
+            echo "PM2 Version: $(pm2 --version)"
