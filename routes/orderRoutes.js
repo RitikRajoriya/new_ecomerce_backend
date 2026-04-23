@@ -5,13 +5,23 @@ const { validateCreateOrder, validateUpdateOrderStatus } = require('../validator
 
 const router = express.Router();
 
+// Debug: Log route registration
+console.log('✅ Order routes registered');
+
 // User routes (require authentication)
 router.post('/', authMiddleware, validateCreateOrder, orderController.createOrder);
 router.get('/my-orders', authMiddleware, orderController.getUserOrders);
 router.get('/:id', authMiddleware, orderController.getOrder);
 router.get('/:id/track', authMiddleware, orderController.trackOrder);
 router.put('/:id/cancel', authMiddleware, orderController.cancelOrder);
-router.post('/cashfree/create', authMiddleware, orderController.createCashfreeOrder);
+
+// Cashfree payment route
+router.post('/cashfree/create', authMiddleware, (req, res, next) => {
+  console.log('💳 Cashfree order creation request received');
+  console.log('User ID:', req.userId);
+  console.log('Request body:', req.body);
+  next();
+}, orderController.createCashfreeOrder);
 
 // Admin routes (require admin authentication)
 router.get('/', authMiddleware, adminMiddleware, orderController.getAllOrders);

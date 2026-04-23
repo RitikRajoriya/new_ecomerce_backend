@@ -23,42 +23,12 @@ dotenv.config();
 // Initialize Express app
 const app = express();
 
-// Handle preflight OPTIONS requests FIRST (before CORS)
-app.use((req, res, next) => {
-  if (req.method === 'OPTIONS') {
-    const origin = req.headers.origin;
-    console.log(`OPTIONS request received from: ${origin}`);
-    
-    // Allow specific origins or indianhandicraftshop.com domain
-    if (allowedOrigins.includes(origin) || (origin && origin.includes('indianhandicraftshop.com'))) {
-      res.header('Access-Control-Allow-Origin', origin);
-      console.log(`✓ CORS allowed for: ${origin}`);
-    } else if (!origin) {
-      // Allow requests with no origin
-      res.header('Access-Control-Allow-Origin', '*');
-      console.log(`✓ CORS allowed (no origin)`);
-    } else {
-      res.header('Access-Control-Allow-Origin', origin);
-      console.log(`⚠ CORS fallback for: ${origin}`);
-    }
-    
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Max-Age', '600');
-    console.log('✓ OPTIONS preflight responded with 200');
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-// Enable CORS for multiple frontend origins
+// Define allowed origins first
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:3000',
-  'http://localhost:5173',
   'https://indianhandicraftshop.com',
   'https://www.indianhandicraftshop.com',
   'https://admin.indianhandicraftshop.com',
@@ -66,20 +36,20 @@ const allowedOrigins = [
   process.env.ADMIN_URL,
 ].filter(Boolean);
 
+// Enable CORS with proper configuration
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.includes(origin)) {
-      callback(null, true);
+      callback(null, origin);
+    } else if (origin.includes('indianhandicraftshop.com')) {
+      // Allow all subdomains of indianhandicraftshop.com
+      console.log(`✓ CORS allowed for domain: ${origin}`);
+      callback(null, origin);
     } else {
-      // In production, allow all origins from indianhandicraftshop.com domain
-      if (origin.includes('indianhandicraftshop.com')) {
-        console.log(`✓ CORS allowed for domain: ${origin}`);
-        return callback(null, true);
-      }
-      console.log(`Blocked by CORS: ${origin}`);
+      console.log(`❌ Blocked by CORS: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -87,8 +57,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 600, // Cache preflight request for 10 minutes
+  maxAge: 600,
 }));
+
+// Handle preflight OPTIONS requests
+app.options('*', cors());
 
 // Middleware
 // Log incoming requests to the console (ONLY in development)
@@ -143,6 +116,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // API Routes
+console.log('\n📡 Registering API routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api', categoryRoutes);
 app.use('/api', productRoutes);
@@ -157,6 +131,7 @@ app.use('/api', videoRoutes);
 app.use('/api/support', require('./routes/supportRoutes'));
 app.use('/api/admin', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
+console.log('✅ All API routes registered\n');
 
 // Health check route
 app.get('/', (req, res) => {
@@ -168,10 +143,11 @@ app.get('/', (req, res) => {
 
 // 404 handler - MUST be after all routes
 app.use((req, res) => {
-  console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
+  console.log(`❌ 404 - Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     success: false,
     message: `Route not found: ${req.method} ${req.originalUrl}`,
+    hint: 'Check if server is running and route is correct',
   });
 });
 
