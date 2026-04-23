@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/database');
@@ -86,7 +87,7 @@ app.use(logger); // Log all requests and responses
 // app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: "500mb" }));
 app.use(express.urlencoded({ extended: true, limit: "500mb" }));
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check endpoint (for monitoring)
 app.get('/api/health', async (req, res) => {
