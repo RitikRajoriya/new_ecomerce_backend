@@ -60,9 +60,6 @@ app.use(cors({
   maxAge: 600,
 }));
 
-// Handle preflight OPTIONS requests
-app.options('*', cors());
-
 // Middleware
 // Log incoming requests to the console (ONLY in development)
 if (process.env.NODE_ENV !== 'production') {
