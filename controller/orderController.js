@@ -645,6 +645,200 @@ exports.createCashfreeOrder = async (req, res) => {
   }
 };
 
+// Verify Cashfree payment and create order
+exports.verifyCashfreePayment = async (req, res) => {
+  try {
+    const { orderId, paymentSessionId } = req.body;
+
+    if (!orderId || !paymentSessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID and Payment Session ID required',
+      });
+    }
+
+    console.log('=== Verifying Cashfree Payment ===');
+    console.log('Order ID:', orderId);
+    console.log('Payment Session ID:', paymentSessionId);
+
+    // Environment-based configuration
+    const cashfreeEnv = process.env.CASHFREE_ENV || 'sandbox';
+    
+    let appId, secretKey, baseUrl;
+    
+    if (cashfreeEnv === 'production') {
+      appId = process.env.CASHFREE_PROD_APP_ID || process.env.CASHFREE_APP_ID;
+      secretKey = process.env.CASHFREE_PROD_SECRET_KEY || process.env.CASHFREE_SECRET_KEY;
+      baseUrl = 'https://api.cashfree.com/pg';
+    } else {
+      appId = process.env.CASHFREE_SANDBOX_APP_ID || process.env.CASHFREE_APP_ID;
+      secretKey = process.env.CASHFREE_SANDBOX_SECRET_KEY || process.env.CASHFREE_SECRET_KEY;
+      baseUrl = 'https://sandbox.cashfree.com/pg';
+    }
+
+    // Verify payment with Cashfree API
+    const axios = require('axios');
+    const response = await axios.get(`${baseUrl}/orders/${orderId}/payments`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-client-id': appId,
+        'x-client-secret': secretKey,
+        'x-api-version': '2023-08-01',
+      },
+    });
+
+    console.log('Cashfree payment verification response:', response.data);
+
+    // Check if payment was successful
+    const payments = response.data;
+    const successfulPayment = payments.find(
+      p => p.payment_status === 'SUCCESS' && p.cf_payment_id
+    );
+
+    if (!successfulPayment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment not completed or failed',
+      });
+    }
+
+    console.log('✅ Payment verified successfully');
+    console.log('Payment ID:', successfulPayment.cf_payment_id);
+    console.log('Amount:', successfulPayment.payment_amount);
+
+    // Get user's cart
+    const cart = await Cart.findOne({ user: req.userId }).populate('items.product');
+
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cart is empty',
+      });
+    }
+
+    // Validate stock and prepare order items
+    const orderItems = [];
+    let itemsPrice = 0;
+    let taxAmount = 0;
+
+    for (const item of cart.items) {
+      const product = item.product;
+      
+      if (!product) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid cart item: product not found',
+        });
+      }
+      
+      let price = Number(item.price || 0);
+      const quantity = Number(item.quantity || 1);
+      const itemTotal = Number(price) * quantity;
+      
+      itemsPrice += itemTotal;
+      
+      // Check stock
+      let stockToCheck;
+      if (product.productType === 'SINGLE' || item.size === 'single') {
+        stockToCheck = product.stock || Infinity;
+      } else {
+        let variation;
+        if (product.productType === 'UNIT') {
+          variation = product.variations?.find(v => v.unit === item.unit && v.value == item.size);
+        } else {
+          variation = product.variations?.find(v => v.size === item.size);
+        }
+        stockToCheck = variation ? variation.stock : (product.stock || Infinity);
+      }
+      
+      if (stockToCheck < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for ${product.name}`,
+        });
+      }
+
+      orderItems.push({
+        product: product._id,
+        name: product.name,
+        price: price,
+        quantity: quantity,
+        size: item.size,
+        unit: item.unit,
+        image: product.images?.[0] || '',
+      });
+    }
+
+    const shippingCost = 0; // Free shipping
+    const totalAmount = itemsPrice + taxAmount + shippingCost;
+
+    // Create order
+    const order = new Order({
+      user: req.userId,
+      items: orderItems,
+      shippingAddress: req.body.shippingAddress || {},
+      paymentMethod: 'online',
+      paymentStatus: 'paid',
+      paymentId: successfulPayment.cf_payment_id,
+      cashfreeOrderId: orderId,
+      itemsPrice: itemsPrice,
+      taxAmount: taxAmount,
+      shippingCost: shippingCost,
+      totalAmount: totalAmount,
+      tracking: [{
+        status: 'Placed',
+        date: new Date(),
+        message: 'Your order has been placed successfully',
+      }],
+    });
+
+    await order.save();
+    console.log('✅ Order created successfully:', order._id);
+
+    // Clear cart
+    cart.items = [];
+    await cart.save();
+
+    // Create notification for user
+    await createNotification(
+      req.userId,
+      'Order placed successfully',
+      'Your order has been placed successfully.',
+      'order',
+      order._id
+    );
+
+    // Create notification for admin
+    const User = require('../models/User');
+    const admins = await User.find({ role: 'admin' }, '_id');
+    for (const admin of admins) {
+      await createNotification(
+        admin._id,
+        'New order received',
+        `New order placed by ${req.userId}`,
+        'admin',
+        order._id
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Payment verified and order created successfully',
+      order: order,
+    });
+
+  } catch (error) {
+    console.error('=== Payment Verification Error ===');
+    console.error('Error:', error.message);
+    console.error('Full Error:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Payment verification failed: ' + error.message,
+    });
+  }
+};
+
 // Delete Order (Admin only) - Cascade delete related data
 exports.deleteOrder = async (req, res) => {
   try {

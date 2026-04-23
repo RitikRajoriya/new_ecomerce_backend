@@ -23,6 +23,14 @@ router.post('/cashfree/create', authMiddleware, (req, res, next) => {
   next();
 }, orderController.createCashfreeOrder);
 
+// Verify Cashfree payment and create order
+router.post('/cashfree/verify', authMiddleware, (req, res, next) => {
+  console.log('🔍 Verifying Cashfree payment');
+  console.log('User ID:', req.userId);
+  console.log('Request body:', req.body);
+  next();
+}, orderController.verifyCashfreePayment);
+
 // Admin routes (require admin authentication)
 router.get('/', authMiddleware, adminMiddleware, orderController.getAllOrders);
 router.put('/:id/status', authMiddleware, adminMiddleware, validateUpdateOrderStatus, orderController.updateOrderStatus);
