@@ -1,5 +1,15 @@
 # Production Deployment Guide
 
+## 🔥 CRITICAL: Recent Fixes Applied
+
+### ✅ Fixed Issues:
+1. **CORS Error** - Admin panel can now access backend APIs
+2. **MongoDB Connection** - Proper error handling and Atlas support
+3. **404 Errors** - Better debugging and route logging
+4. **Route Registration** - Added debug logs to verify routes
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Update MongoDB Connection String
@@ -83,6 +93,28 @@ sudo systemctl restart nginx
 
 ## 🔍 Troubleshooting
 
+### CORS Error (Admin Panel Blocked)
+
+If you see: `No 'Access-Control-Allow-Origin' header present`
+
+**Solution:**
+```bash
+# 1. Pull latest code (CORS fix is already applied)
+git pull origin main
+
+# 2. Restart PM2
+pm2 restart ecommerce-api --update-env
+
+# 3. Check logs for CORS messages
+pm2 logs ecommerce-api --lines 50 | grep -i cors
+```
+
+**Expected behavior:**
+- ✅ Admin panel requests should work
+- ✅ Logs should show: `✓ CORS allowed for domain: https://admin.indianhandicraftshop.com`
+
+---
+
 ### MongoDB Connection Error
 
 If you see `ECONNREFUSED 127.0.0.1:27017`:
@@ -108,23 +140,45 @@ If you see `ECONNREFUSED 127.0.0.1:27017`:
 
 If you see `Cannot POST /api/orders/cashfree/create`:
 
-1. **Check server logs:**
-   ```bash
-   pm2 logs ecommerce-api --lines 100
-   ```
+**1. Check server logs:**
+```bash
+pm2 logs ecommerce-api --lines 100
+```
 
-2. **Verify routes are registered:**
-   Look for this in startup logs:
-   ```
-   === Environment Verification ===
-   NODE_ENV: production
-   MONGODB_URI: Configured
-   ```
+**Look for these messages:**
+```
+✅ Order routes registered
+📡 Registering API routes...
+✅ All API routes registered
+```
 
-3. **Test endpoint directly:**
-   ```bash
-   curl http://localhost:5001/api/health
-   ```
+**2. Verify MongoDB is connected:**
+Look for:
+```
+✅ MongoDB Connected: cluster.mongodb.net
+```
+
+**3. Test the endpoint:**
+```bash
+# Test on server directly
+curl -X POST http://localhost:5001/api/orders/cashfree/create \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"amount": 100}'
+```
+
+**4. Check for route hit logs:**
+When endpoint is called, you should see:
+```
+💳 Cashfree order creation request received
+User ID: xxx
+Request body: { amount: 100 }
+```
+
+**5. Verify environment:**
+```bash
+pm2 logs ecommerce-api | grep "Environment Verification"
+```
 
 ### PM2 Environment Variables Not Loading
 
