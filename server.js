@@ -17,7 +17,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 // Logger middleware
 const logger = require('./middleware/logger');
 
-// Load environment variables
+// Load environment variables - MUST be at the top
 dotenv.config();
 
 // Initialize Express app
@@ -166,13 +166,14 @@ app.get('/', (req, res) => {
   });
 });
 
-// 404 handler
-// app.use((req, res) => {
-//   res.status(404).json({
-//     success: false,
-//     message: 'Route not found',
-//   });
-// });
+// 404 handler - MUST be after all routes
+app.use((req, res) => {
+  console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -188,10 +189,23 @@ const PORT = process.env.PORT || 5001;
 
 const startServer = async () => {
   try {
+    // Verify environment variables before starting
+    console.log('\n=== Environment Verification ===');
+    console.log(`NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+    console.log(`PORT: ${PORT}`);
+    console.log(`MONGODB_URI: ${process.env.MONGODB_URI ? 'Configured' : 'MISSING'}`);
+    console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? 'Configured' : 'MISSING'}`);
+    console.log(`CASHFREE_ENV: ${process.env.CASHFREE_ENV || 'sandbox'}`);
+    console.log(`FRONTEND_URL: ${process.env.FRONTEND_URL || 'not set'}`);
+    console.log('=============================\n');
+    
+    // Connect to database first
     await connectDB();
+    
+    // Start listening only after DB connection
     app.listen(PORT, () => {
       console.log(`\n========================================`);
-      console.log(`Server running on port ${PORT}`);
+      console.log(`✅ Server running on port ${PORT}`);
       console.log(`========================================`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`Cashfree ENV: ${process.env.CASHFREE_ENV || 'sandbox'}`);
@@ -218,7 +232,8 @@ const startServer = async () => {
       console.log(`========================================\n`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error.message);
+    console.error('\n❌ Failed to start server:', error.message);
+    console.error('Server exited due to startup errors');
     process.exit(1);
   }
 };
