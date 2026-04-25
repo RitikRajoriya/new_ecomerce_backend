@@ -7,17 +7,26 @@ echo "========================================="
 # Navigate to backend directory
 cd /var/www/backend
 
-# Step 1: Backup .env file
-echo "📦 Backing up .env file..."
-cp .env /var/www/.env.production.backup
+# Step 1: Backup current .env (just in case)
+echo "📦 Backing up current .env file..."
+if [ -f .env ]; then
+    cp .env /var/www/.env.backup
+fi
 
 # Step 2: Pull latest code
 echo "📥 Pulling latest code from GitHub..."
 git pull origin main
 
-# Step 3: Restore .env file (CRITICAL - never lose this!)
-echo "🔒 Restoring .env file..."
-cp /var/www/.env.production.backup .env
+# Step 3: Restore .env from PERMANENT backup (CRITICAL!)
+echo "🔒 Restoring .env from permanent backup..."
+if [ -f /var/www/.env.permanent ]; then
+    cp /var/www/.env.permanent .env
+    echo "✅ .env restored from permanent backup"
+else
+    echo "❌ ERROR: Permanent .env backup not found at /var/www/.env.permanent"
+    echo "Please create it first: cp .env /var/www/.env.permanent"
+    exit 1
+fi
 
 # Step 4: Install dependencies if needed
 if [ -f package.json ]; then
