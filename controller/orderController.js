@@ -975,14 +975,20 @@ exports.cashfreeWebhook = async (req, res) => {
       console.log('✅ Minimal order created:', order._id);
     } else {
       // Create order from cart
-      const orderItems = cart.items.map(item => ({
-        product: item.product._id,
-        name: item.product.name,
-        price: item.price,
-        quantity: item.quantity,
-        total: item.price * item.quantity,
-        size: item.size || 'default',
-      }));
+      const orderItems = cart.items.map(item => {
+        // Handle case where product might not be populated
+        const productId = item.product ? item.product._id : new (require('mongoose').Types.ObjectId)();
+        const productName = item.product ? item.product.name : 'Product';
+        
+        return {
+          product: productId,
+          name: productName,
+          price: item.price,
+          quantity: item.quantity,
+          total: item.price * item.quantity,
+          size: item.size || 'default',
+        };
+      });
 
       const order = new Order({
         user: userId,
