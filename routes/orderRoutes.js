@@ -31,6 +31,16 @@ router.post('/cashfree/verify', authMiddleware, (req, res, next) => {
   next();
 }, orderController.verifyCashfreePayment);
 
+// Cashfree webhook for automatic order creation
+router.post('/cashfree/webhook', (req, res, next) => {
+  console.log('🔔 Cashfree webhook received');
+  console.log('Event type:', req.body?.type);
+  console.log('Order ID:', req.body?.data?.order_id);
+  console.log('Payment Status:', req.body?.data?.payment_status);
+  next();
+}, orderController.cashfreeWebhook);
+
+
 // Admin routes (require admin authentication)
 router.get('/', authMiddleware, adminMiddleware, orderController.getAllOrders);
 router.put('/:id/status', authMiddleware, adminMiddleware, validateUpdateOrderStatus, orderController.updateOrderStatus);

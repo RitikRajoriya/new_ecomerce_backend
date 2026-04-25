@@ -884,3 +884,167 @@ exports.deleteOrder = async (req, res) => {
     });
   }
 };
+
+/**
+ * @route   POST /api/orders/cashfree/webhook
+ * @desc    Cashfree webhook to automatically create orders on payment success
+ * @access  Public (Cashfree server calls this)
+ */
+exports.cashfreeWebhook = async (req, res) => {
+  try {
+    const { type, data } = req.body;
+    
+    console.log('🔔 Cashfree Webhook Received:', type, data?.order_id);
+
+    // Only process payment success events
+    if (type !== 'Payment' || data?.payment_status !== 'SUCCESS') {
+      console.log('⏭️ Skipping webhook - not a successful payment');
+      return res.status(200).json({ success: true, message: 'Webhook received' });
+    }
+
+    const orderId = data.order_id;
+    const paymentId = data.cf_payment_id;
+    const paymentAmount = data.payment_amount;
+
+    console.log('✅ Processing successful payment:', orderId, paymentId);
+
+    // Check if order already exists for this payment
+    const Order = require('../models/Order');
+    const existingOrder = await Order.findOne({ 
+      $or: [
+        { cashfreeOrderId: orderId },
+        { paymentId: paymentId }
+      ]
+    });
+
+    if (existingOrder) {
+      console.log('✅ Order already exists:', existingOrder._id);
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Order already created',
+        orderId: existingOrder._id 
+      });
+    }
+
+    // Extract user ID from order_id (format: ORD_timestamp_userId)
+    const parts = orderId.split('_');
+    const userId = parts[parts.length - 1];
+
+    if (!userId) {
+      console.error('❌ Could not extract userId from orderId:', orderId);
+      return res.status(400).json({ success: false, message: 'Invalid order format' });
+    }
+
+    console.log('👤 User ID:', userId);
+
+    // Get user's cart
+    const Cart = require('../models/Cart');
+    const cart = await Cart.findOne({ user: userId }).populate('items.product');
+
+    if (!cart || cart.items.length === 0) {
+      console.warn('⚠️ Cart is empty for user:', userId);
+      // Still create a minimal order with payment info
+      const order = new Order({
+        user: userId,
+        items: [{
+          product: new (require('mongoose').Types.ObjectId)(),
+          name: 'Online Payment',
+          price: paymentAmount,
+          quantity: 1,
+          size: 'single',
+          total: paymentAmount,
+        }],
+        paymentMethod: 'online',
+        paymentStatus: 'paid',
+        paymentId: paymentId,
+        cashfreeOrderId: orderId,
+        itemsPrice: paymentAmount,
+        taxAmount: 0,
+        shippingCost: 0,
+        totalAmount: paymentAmount,
+        tracking: [
+          {
+            status: 'Placed',
+            date: new Date(),
+            message: 'Payment received. Order details pending.',
+          },
+        ],
+      });
+
+      await order.save();
+      console.log('✅ Minimal order created:', order._id);
+    } else {
+      // Create order from cart
+      const orderItems = cart.items.map(item => ({
+        product: item.product._id,
+        name: item.product.name,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.price * item.quantity,
+        size: item.size || 'default',
+      }));
+
+      const order = new Order({
+        user: userId,
+        items: orderItems,
+        paymentMethod: 'online',
+        paymentStatus: 'paid',
+        paymentId: paymentId,
+        cashfreeOrderId: orderId,
+        itemsPrice: cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+        taxAmount: 0,
+        shippingCost: 0,
+        totalAmount: cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+        tracking: [
+          {
+            status: 'Placed',
+            date: new Date(),
+            message: 'Your order has been placed successfully',
+          },
+        ],
+      });
+
+      await order.save();
+      console.log('✅ Order created from cart:', order._id);
+
+      // Clear cart
+      await Cart.findOneAndDelete({ user: userId });
+    }
+
+    // Send notifications
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+
+    await Notification.create({
+      user: userId,
+      title: 'Order Placed Successfully',
+      message: `Your order has been confirmed.`,
+      type: 'order',
+    });
+
+    // Notify admin
+    const adminUsers = await User.find({ role: 'admin' });
+    for (const admin of adminUsers) {
+      await Notification.create({
+        user: admin._id,
+        title: 'New Order Received',
+        message: `New order worth ₹${paymentAmount} received.`,
+        type: 'order',
+      });
+    }
+
+    console.log('✅ Webhook processing completed successfully');
+    res.status(200).json({ 
+      success: true, 
+      message: 'Order created via webhook',
+      orderId: order?._id 
+    });
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    // Still return 200 to Cashfree to prevent retries
+    res.status(200).json({ 
+      success: false, 
+      message: 'Webhook error: ' + error.message 
+    });
+  }
+};
